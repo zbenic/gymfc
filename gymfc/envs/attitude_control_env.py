@@ -6,6 +6,8 @@ logger = logging.getLogger("gymfc")
 
 
 class AttitudeFlightControlEnv(GazeboEnv):
+    """ A basic attitude flight control enviornment in which the reward is 
+    computed as a normalized penality of the angular velocity error """
     def compute_reward(self):
         """ Compute the reward """
         return -np.clip(np.sum(np.abs(self.error))/(self.omega_bounds[1]*3), 0, 1)
@@ -15,18 +17,25 @@ class AttitudeFlightControlEnv(GazeboEnv):
         return  self.np_random.uniform(self.omega_bounds[0], self.omega_bounds[1], size=3)
     
 class GyroErrorFeedbackEnv(AttitudeFlightControlEnv):
+    """ An episodic environment for aircraft that do not support ESC telementry
+
+    state space: Box(M3) Where M is number of past gyro errors
+    action space: Box(motor count) 
+    """
     def __init__(self, world="attitude-iris.world", 
                  omega_bounds = math.pi, 
                  max_sim_time = 1., 
                  motor_count = 4, 
-                 memory_size=1,): 
+                 memory_size=1,
+                 model=None, 
+                 noise_stddev = 0,): 
         
         self.omega_bounds = omega_bounds
         self.max_sim_time = max_sim_time
         self.memory_size = memory_size
         self.motor_count = motor_count
         self.observation_history = []
-        super(GyroErrorFeedbackEnv, self).__init__(motor_count = motor_count, world=world)
+        super(GyroErrorFeedbackEnv, self).__init__(motor_count = motor_count, world=world, model=model, noise_stddev=noise_stddev)
         self.omega_target = self.sample_target()
 
     def step(self, action):
@@ -53,6 +62,12 @@ class GyroErrorFeedbackEnv(AttitudeFlightControlEnv):
 
 
 class GyroErrorESCVelocityFeedbackEnv(GazeboEnv):
+    """ An episodic environment for aircraft supporting ESC telemetry
+
+    state space: Box(M3 + 4) Where M is number of past gyro errors and 4 motor 
+    velocities.
+    action space: Box(motor count) 
+    """
     def __init__(self, world="attitude-iris.world", 
                  omega_bounds = math.pi, 
                  max_sim_time = 1., 
