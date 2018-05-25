@@ -50,6 +50,8 @@ struct fdmPacket
   /// \brief IMU angular velocity
   double imuAngularVelocityRPY[3];
 
+  double imuAngularVelocityNoiseFreeRPY[3];
+
   /// \brief IMU linear acceleration
   double imuLinearAccelerationXYZ[3];
 

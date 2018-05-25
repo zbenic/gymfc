@@ -606,6 +606,13 @@ void QuadcopterWorldPlugin::SendState() const
   ignition::math::Vector3d angularVel =
     this->imuSensor->AngularVelocity();
 
+  // get truth
+  ignition::math::Vector3d angularVelNoiseFree =
+    this->imuSensor->AngularVelocity(_noiseFree = true);
+  pkt.imuAngularVelocityNoiseFreeRPY[0] = angularVelNoiseFree.X(); 
+  pkt.imuAngularVelocityNoiseFreeRPY[1] = angularVelNoiseFree.Y(); 
+  pkt.imuAngularVelocityNoiseFreeRPY[2] = angularVelNoiseFree.Z(); 
+
   // copy to pkt
   pkt.imuAngularVelocityRPY[0] = angularVel.X();
   pkt.imuAngularVelocityRPY[1] = angularVel.Y();

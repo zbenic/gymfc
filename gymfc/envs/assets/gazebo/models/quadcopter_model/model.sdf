@@ -117,6 +117,26 @@
         <pose>0 0 0 3.141593 0 0</pose>
         <always_on>1</always_on>
         <update_rate>1000.0</update_rate>
+		<imu>
+			<angular_velocity>
+				<!-- At runtime these are filled in -->
+				<x>
+					<noise type="gaussian">
+						<stddev>0.1</stddev>
+					</noise>
+				</x>
+				<y>
+					<noise type="none">
+						<stddev>0.1</stddev>
+					</noise>
+				</y>
+				<z>
+					<noise type="none">
+						<stddev>0.1</stddev>
+					</noise>
+				</z>
+			</angular_velocity>
+		</imu>
       </sensor>
     </link>
     <joint name='quadcopter_model/imu_joint' type='revolute'>
