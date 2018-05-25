@@ -49,20 +49,24 @@ class PWMPacket:
 class FDMPacket:
 
     def decode(self, data):
-        unpacked = np.array(list(struct.unpack("<d3d3d4d3d3d4dQ", data)))
+        unpacked = np.array(list(struct.unpack("<d3d3d3d4d3d3d4dQ", data)))
         self.timestamp = unpacked[0]
 
         self.angular_velocity_rpy = unpacked[1:4]
         self.angular_velocity_rpy[1] *= -1
         self.angular_velocity_rpy[2] *= -1
 
-        self.linear_acceleration_xyz = unpacked[4:7]
-        self.orientation_quat = unpacked[7:11]
-        self.velocity_xyz = unpacked[11:14]
-        self.position_xyz = unpacked[14:17]
+        self.angular_velocity_noisefree_rpy = unpacked[4:7]
+        self.angular_velocity_noisefree_rpy[1] *= -1
+        self.angular_velocity_noisefree_rpy[2] *= -1
+
+        self.linear_acceleration_xyz = unpacked[7:10]
+        self.orientation_quat = unpacked[10:14]
+        self.velocity_xyz = unpacked[14:17]
+        self.position_xyz = unpacked[17:20]
         #FIXME move this to the end because its variable
-        self.motor_velocity = unpacked[17:21]
-        self.iteration = unpacked[21]
+        self.motor_velocity = unpacked[20:24]
+        self.iteration = unpacked[24]
         unpacked.flags.writeable = False # Sensor values are readonly 
         return self
 
@@ -116,8 +120,12 @@ class GazeboEnv(gym.Env):
     FC_PORT = 9005
     GZ_START_PORT = 11345
 
-    def __init__(self, motor_count=None, world=None, host="localhost"):
-        """ Initialize the Gazebo simulation """
+    def __init__(self, motor_count=None, world=None, model=None, noise_stddev=0.0,  host="localhost"):
+        """ Initialize the Gazebo simulation 
+        
+        
+	model: String of the model to use in the world, for example <uri>model://quadcopter</uri>
+        """
         self.host = host
         # Search for open ports to allow multile instances of the environment
         # to run in parrellel
@@ -142,6 +150,15 @@ class GazeboEnv(gym.Env):
         self.action_space = spaces.Box(-high, high, dtype=np.float32)
         self.observation_space = spaces.Box(-np.inf, np.inf, shape=state.shape, dtype=np.float32) 
 
+        if noise_stddev == 0:
+            vars = {"noise_type": "none",
+                    "noise_stddev": 0,}
+        else:
+            vars = {"noise_type": "gaussian",
+                    "noise_stddev": noise_stddev,}
+        self._setup_vars()
+        model_template = os.path.join(self.models, model, "model.tpl")
+        self._write_template(model_template, vars)
         self._start_sim()
         #self.dt = self.gz.sdf_max_step_size()        
 
@@ -150,6 +167,18 @@ class GazeboEnv(gym.Env):
             lambda: ESCClientProtocol(),
             remote_addr=(host, self.aircraft_port))
         _, self.esc_protocol = self.loop.run_until_complete(writer) 
+
+    def _write_template(self, template, vars):
+        # This is a gross hack to change dynamics in the SDF files
+        # At least for noise this appears immutable and can not easily
+        # be changed by a plugin
+        # FIXME When we get into loading custom models this would be annoying to 
+        # have to tie this in
+        sdf_file = template.replace(".tpl", ".sdf")
+        with open(template, 'r') as f:
+            sdf = f.read() % vars
+            with open(sdf_file, 'w') as f2:
+                f2.write(sdf)
 
     def step_sim(self, action):
         """ Take a single step in the simulator and return the current 
@@ -195,7 +224,7 @@ class GazeboEnv(gym.Env):
         """
         return os.environ[name] if name in os.environ else ""
 
-    def _start_sim(self):
+    def _setup_vars(self):
         """ Start Gazebo """
 
         signal.signal(signal.SIGINT, self._signal_handler)
@@ -224,14 +253,15 @@ class GazeboEnv(gym.Env):
 
         # Now load assets
         gz_assets = os.path.join(os.path.dirname(__file__), "assets/gazebo/")
-        models = os.path.join(gz_assets, "models")
+        self.models = os.path.join(gz_assets, "models")
         plugins = os.path.join(gz_assets, "plugins", "build")
-        worlds = os.path.join(gz_assets, "worlds")
-        os.environ["GAZEBO_MODEL_PATH"] = "{}:{}".format(models, os.environ["GAZEBO_MODEL_PATH"])
-        os.environ["GAZEBO_RESOURCE_PATH"] = "{}:{}".format(worlds, os.environ["GAZEBO_RESOURCE_PATH"])
+        self.worlds = os.path.join(gz_assets, "worlds")
+        os.environ["GAZEBO_MODEL_PATH"] = "{}:{}".format(self.models, os.environ["GAZEBO_MODEL_PATH"])
+        os.environ["GAZEBO_RESOURCE_PATH"] = "{}:{}".format(self.worlds, os.environ["GAZEBO_RESOURCE_PATH"])
         os.environ["GAZEBO_PLUGIN_PATH"] = "{}:{}".format(plugins, os.environ["GAZEBO_PLUGIN_PATH"])
 
-        target_world = os.path.join(gz_assets, "worlds", self.world)
+    def _start_sim(self):
+        target_world = os.path.join(self.worlds, self.world)
         
         p = subprocess.Popen(["gzserver", "--verbose", target_world], shell=False) 
         self.pid = p.pid
