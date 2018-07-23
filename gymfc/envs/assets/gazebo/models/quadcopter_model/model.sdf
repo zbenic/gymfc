@@ -5,7 +5,7 @@
   <model name='quadcopter_model'>
 	  <enable_wind>true</enable_wind>
 	  <!--<pose>0 0 0.194923 0 0 0</pose>-->
-    <pose>0 0 0 0 0 0</pose>
+    <pose>0 0 0.055 0 0 0</pose>
     <link name='base_link'>
 
 	  <enable_wind>true</enable_wind>
@@ -27,10 +27,10 @@
         </inertia>
       </inertial>
       <collision name='base_link_collision'>
-        <pose>0 0 -0.08 0 0 0</pose>
+        <pose>0 0 0 0 0 0</pose>
         <geometry>
           <box>
-            <size>0.47 0.47 0.23</size>
+            <size>0.47 0.47 0.11</size>
           </box>
         </geometry>
         <surface>
@@ -62,6 +62,15 @@
           </script>
         </material>
       </visual>
+
+      <!-- Collision sensor -->
+      <sensor name='contact_sensor' type='contact'>
+        <contact>
+          <collision>base_link_collision</collision>
+        </contact>
+        <always_on>1</always_on>
+        <update_rate>1000.0</update_rate>
+      </sensor>
     </link>
     <link name='quadcopter_model/ground_truth/odometry_sensorgt_link'>
       <pose>0 0 0 0 -0 0</pose>

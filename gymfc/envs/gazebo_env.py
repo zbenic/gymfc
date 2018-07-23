@@ -49,7 +49,7 @@ class PWMPacket:
 class FDMPacket:
 
     def decode(self, data):
-        unpacked = np.array(list(struct.unpack("<d3d3d4d3d3d4dQ", data)))
+        unpacked = np.array(list(struct.unpack("<d3d3d4d3d3d4dQQ", data)))
         self.timestamp = unpacked[0]
 
         self.angular_velocity_rpy = unpacked[1:4]
@@ -60,9 +60,11 @@ class FDMPacket:
         self.orientation_quat = unpacked[7:11]
         self.velocity_xyz = unpacked[11:14]
         self.position_xyz = unpacked[14:17]
+        self.position_xyz[2] *= -1
         #FIXME move this to the end because its variable
         self.motor_velocity = unpacked[17:21]
-        self.iteration = unpacked[21]
+        self.collisionCount = unpacked[21]
+        self.iteration = unpacked[22]
         unpacked.flags.writeable = False # Sensor values are readonly 
         return self
 
@@ -175,8 +177,13 @@ class GazeboEnv(gym.Env):
         pwm_motor_values = [ ((m + 1) * 500) for m in action]
         observations = await self.esc_protocol.write_motor(pwm_motor_values)
         # Make these visible
+        self.position_actual = observations.position_xyz
+        self.linearVelocity = observations.velocity_xyz
+        self.attitude_quat = observations.orientation_quat
+        self.attitude = quaternion_to_euler_angle(*self.attitude_quat)
         self.omega_actual = observations.angular_velocity_rpy
-        self.sim_time = observations.timestamp 
+        self.sim_time = observations.timestamp
+        self.quadState = np.concatenate((self.position_actual, self.attitude), axis=0)
         return observations
     
     def reset2(self):
@@ -232,7 +239,7 @@ class GazeboEnv(gym.Env):
         os.environ["GAZEBO_PLUGIN_PATH"] = "{}:{}".format(plugins, os.environ["GAZEBO_PLUGIN_PATH"])
 
         target_world = os.path.join(gz_assets, "worlds", self.world)
-        
+
         p = subprocess.Popen(["gzserver", "--verbose", target_world], shell=False) 
         self.pids.append(p.pid)
 
@@ -325,7 +332,8 @@ class GazeboEnv(gym.Env):
     def reset(self):
         self.loop.run_until_complete(self._reset())
         self.loop.run_until_complete(self._step_sim(self.action_space.low))
-        self.omega_target = self.sample_target().copy()
+        # self.omega_target = self.sample_target().copy()
+        self.position_target = self.sample_position_target().copy()
         return self.state()
 
     def close(self):
@@ -344,11 +352,33 @@ class GazeboEnv(gym.Env):
     def sample_target(self):
         raise NotImplementedError
 
+    def sample_position_target(self):
+        raise NotImplementedError
+
     def render(self, mode='human'):
-        p = subprocess.Popen(["gzclient"], shell=False)
+        p = subprocess.Popen(["gzclient", "--verbose"], shell=False)
         self.pids.append(p.pid)
 
 
 class SDFNoMaxStepSizeFoundException(Exception):
     pass
+
+
+def quaternion_to_euler_angle(w, x, y, z):
+    ysqr = y * y
+
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + ysqr)
+    X = math.degrees(math.atan2(t0, t1))
+
+    t2 = +2.0 * (w * y - z * x)
+    t2 = +1.0 if t2 > +1.0 else t2
+    t2 = -1.0 if t2 < -1.0 else t2
+    Y = math.degrees(math.asin(t2))
+
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (ysqr + z * z)
+    Z = math.degrees(math.atan2(t3, t4))
+
+    return np.array([X, Y, Z])
 

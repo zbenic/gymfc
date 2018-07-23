@@ -1,0 +1,14 @@
+<?xml version='1.0'?>
+<sdf version="1.6">
+ <model name="quadcopter_takeoff_control">
+	 /home/kizo/gazebo-8.2.0/worlds/
+	<enable_wind>true</enable_wind>
+	<!-- Place the aircraft on the ground 
+		 x y z r p y -->
+	<pose>0 0 0 0 0 0</pose> 
+
+	<include>
+		<uri>model://quadcopter</uri>
+	</include>
+  </model>
+</sdf>

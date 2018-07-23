@@ -52,8 +52,9 @@ typedef SSIZE_T ssize_t;
 
 #include "QuadcopterWorldPlugin.hh"
 
-
 using namespace gazebo;
+
+
 /// \brief Obtains a parameter from sdf.
 /// \param[in] _sdf Pointer to the sdf object.
 /// \param[in] _name Name of the parameter.
@@ -282,13 +283,34 @@ void QuadcopterWorldPlugin::processSDF(sdf::ElementPtr _sdf)
       + "::" + imuName;
   this->imuSensor = std::dynamic_pointer_cast<sensors::ImuSensor>
     (sensors::SensorManager::Instance()->GetSensor(imuScopedName));
-
+  
   if (!this->imuSensor)
   {
     gzerr << "imu_sensor [" << imuScopedName
           << "] not found, abort Quadcopter plugin.\n" << "\n";
     return;
   }
+
+  std::string contactName;
+  getSdfParam<std::string>(_sdf, "contactName", contactName, "contact_sensor");
+  /*
+  std::string contactScopedName = this->_world->Name()
+      + "::" + this->_model->GetScopedName() 
+      + "::" + contactName;
+  */
+    std::string contactScopedName = this->_world->Name()
+      + "::" + this->_model->GetScopedName() 
+      + "::quadcopter_takeoff_control::quadcopter::quadcopter_model::base_link::contact_sensor";
+  this->contactSensor = std::dynamic_pointer_cast<sensors::ContactSensor>
+    (sensors::SensorManager::Instance()->GetSensor(contactScopedName));
+
+  if (!this->contactSensor)
+  {
+    gzerr << "contact_sensor [" << contactScopedName
+          << "] not found, abort Quadcopter plugin.\n" << "\n";
+    return;
+  }
+
   // Missed update count before we declare arduCopterOnline status false
   getSdfParam<int>(_sdf, "connectionTimeoutMaxCount",
     this->connectionTimeoutMaxCount, 10);
@@ -611,6 +633,20 @@ void QuadcopterWorldPlugin::SendState() const
   pkt.imuAngularVelocityRPY[1] = angularVel.Y();
   pkt.imuAngularVelocityRPY[2] = angularVel.Z();
 
+    // get number of collisions with the main quad body
+  uint64_t collisionCount = 
+    this->contactSensor->GetCollisionCount();
+  std::string collisionName =
+    this->contactSensor->GetCollisionName(0);
+  uint64_t collisionContactCount =
+    this->contactSensor->GetCollisionContactCount(collisionName);
+  std::map<std::string, gazebo::physics::Contact> contacts =
+    this->contactSensor->Contacts(collisionName);
+
+
+  // copy to pkt
+  pkt.collisionCount = contacts.size();
+
  //if (pkt.iter == 0){
   //}
 
@@ -712,7 +748,3 @@ Rotor::Rotor()
 
     this->pid.Init(0.1, 0, 0, 0, 0, 1.0, -1.0);
 }
-
-
-
-

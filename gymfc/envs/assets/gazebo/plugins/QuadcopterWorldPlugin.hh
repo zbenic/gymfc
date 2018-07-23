@@ -63,6 +63,10 @@ struct fdmPacket
   double positionXYZ[3];
 
   double motorVelocity[4];
+
+ // \brief Number of collisions with main quad body
+  uint64_t collisionCount;
+
  // uint32_t iter;
   uint64_t iter;
   
@@ -169,6 +173,9 @@ struct fdmPacket
 
 	/// \brief Pointer to an IMU sensor
 	public: sensors::ImuSensorPtr imuSensor;
+
+		/// \brief Pointer to an contact sensor
+	public: sensors::ContactSensorPtr contactSensor;
 
 	/// \brief false before ardupilot controller is online
 	/// to allow gazebo to continue without waiting

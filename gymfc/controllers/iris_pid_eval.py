@@ -1,11 +1,14 @@
 import argparse
 import gym
 import gymfc
-from .pid import PIDController
+from gymfc.controllers.pid import PIDController
+# from .pid import PIDController
+from gymfc.controllers.positionPID import PIDControllerPosition
 import matplotlib.pyplot as plt
 import numpy as np
 from mpi4py import MPI
 import math
+import time
 
 """
 This script evaluates a PID controller in the GymFC environment. This can be
@@ -61,7 +64,7 @@ def plot_step_response(desired, actual,
     plot_max = math.radians(350)
 
     subplot_index = 3
-    num_subplots = 3
+    num_subplots = 6
 
     f, ax = plt.subplots(num_subplots, sharex=True, sharey=False)
     f.set_size_inches(10, 5)
@@ -74,46 +77,89 @@ def plot_step_response(desired, actual,
     error_linestyle = "r--"
 
     # Always
-    ax[0].set_ylabel("Roll (rad/s)")
-    ax[1].set_ylabel("Pitch (rad/s)")
-    ax[2].set_ylabel("Yaw (rad/s)")
+    ax[0].set_ylabel("X (m)")
+    ax[1].set_ylabel("Y (m)")
+    ax[2].set_ylabel("Z (m)")
+    ax[3].set_ylabel("Roll (rad)")
+    ax[4].set_ylabel("Pitch (rad)")
+    ax[5].set_ylabel("Yaw (rad)")
 
     ax[-1].set_xlabel("Time (s)")
 
 
-    """ ROLL """
+    """ X """
     # Highlight the starting x axis
     ax[0].axhline(0, color="#AAAAAA")
-    ax[0].plot(t, desired[:,0], reflinestyle)
-    ax[0].plot(t, desired[:,0] -  threshold[:,0] , error_linestyle, alpha=0.5)
-    ax[0].plot(t, desired[:,0] +  threshold[:,0] , error_linestyle, alpha=0.5)
- 
-    r = actual[:,0]
-    ax[0].plot(t[:len(r)], r, linewidth=res_linewidth)
+    ax[0].plot(t, desired[:, 0], reflinestyle)
+    ax[0].plot(t, desired[:, 0] - threshold[:, 0], error_linestyle, alpha=0.5)
+    ax[0].plot(t, desired[:, 0] + threshold[:, 0], error_linestyle, alpha=0.5)
+
+    x = actual[:, 0]
+    ax[0].plot(t[:len(x)], x, linewidth=res_linewidth)
 
     ax[0].grid(True)
+
+
+    """ Y """
+    # Highlight the starting x axis
+    ax[1].axhline(0, color="#AAAAAA")
+    ax[1].plot(t, desired[:, 1], reflinestyle)
+    ax[1].plot(t, desired[:, 1] - threshold[:, 1], error_linestyle, alpha=0.5)
+    ax[1].plot(t, desired[:, 1] + threshold[:, 1], error_linestyle, alpha=0.5)
+
+    y = actual[:, 1]
+    ax[1].plot(t[:len(y)], y, linewidth=res_linewidth)
+
+    ax[1].grid(True)
+
+
+    """ Z """
+    # Highlight the starting x axis
+    ax[2].axhline(0, color="#AAAAAA")
+    ax[2].plot(t, desired[:, 2], reflinestyle)
+    ax[2].plot(t, desired[:, 2] - threshold[:, 2], error_linestyle, alpha=0.5)
+    ax[2].plot(t, desired[:, 2] + threshold[:, 2], error_linestyle, alpha=0.5)
+
+    z = actual[:, 2]
+    ax[2].plot(t[:len(z)], z, linewidth=res_linewidth)
+
+    ax[2].grid(True)
+
+
+    """ ROLL """
+    # Highlight the starting x axis
+    ax[3].axhline(0, color="#AAAAAA")
+    ax[3].plot(t, desired[:,3], reflinestyle)
+    ax[3].plot(t, desired[:,3] -  threshold[:,3] , error_linestyle, alpha=0.5)
+    ax[3].plot(t, desired[:,3] +  threshold[:,3] , error_linestyle, alpha=0.5)
+ 
+    r = actual[:,3]
+    ax[3].plot(t[:len(r)], r, linewidth=res_linewidth)
+
+    ax[3].grid(True)
 
 
 
     """ PITCH """
 
-    ax[1].axhline(0, color="#AAAAAA")
-    ax[1].plot(t, desired[:,1], reflinestyle)
-    ax[1].plot(t, desired[:,1] -  threshold[:,1] , error_linestyle, alpha=0.5)
-    ax[1].plot(t, desired[:,1] +  threshold[:,1] , error_linestyle, alpha=0.5)
+    ax[4].axhline(0, color="#AAAAAA")
+    ax[4].plot(t, desired[:,4], reflinestyle)
+    ax[4].plot(t, desired[:,4] -  threshold[:,4] , error_linestyle, alpha=0.5)
+    ax[4].plot(t, desired[:,4] +  threshold[:,4] , error_linestyle, alpha=0.5)
     p = actual[:,1]
-    ax[1].plot(t[:len(p)],p, linewidth=res_linewidth)
-    ax[1].grid(True)
+    ax[4].plot(t[:len(p)],p, linewidth=res_linewidth)
+    ax[4].grid(True)
 
 
     """ YAW """
-    ax[2].axhline(0, color="#AAAAAA")
-    ax[2].plot(t, desired[:,2], reflinestyle)
-    ax[2].plot(t, desired[:,2] -  threshold[:,2] , error_linestyle, alpha=0.5)
-    ax[2].plot(t, desired[:,2] +  threshold[:,2] , error_linestyle, alpha=0.5)
-    y = actual[:,2]
-    ax[2].plot(t[:len(y)],y , linewidth=res_linewidth)
-    ax[2].grid(True)
+    ax[5].axhline(0, color="#AAAAAA")
+    ax[5].plot(t, desired[:,5], reflinestyle)
+    ax[5].plot(t, desired[:,5] -  threshold[:,5] , error_linestyle, alpha=0.5)
+    ax[5].plot(t, desired[:,5] +  threshold[:,5] , error_linestyle, alpha=0.5)
+
+    y = actual[:,5]
+    ax[5].plot(t[:len(y)],y , linewidth=res_linewidth)
+    ax[5].grid(True)
 
     plt.show()
 
@@ -159,13 +205,53 @@ def eval(env, pi):
     env.close()
     return desireds, actuals
 
+class PIDPolicyPosition(Policy):
+    def __init__(self):
+        self.x = [40, 5, 0.05]
+        self.y = [40, 5, 0.05]
+        self.h = [40, 5, 0.05]
+        self.r = [45, 5, 0.5]
+        self.p = [45, 5, 0.5]
+        self.y = [40, 5, 0.05]
+        self.controller = PIDControllerPosition(pid_x=self.x, pid_y=self.y, pid_z=self.h, pid_roll=self.r, pid_pitch=self.p, pid_yaw=self.y)
+
+    def action(self, state, sim_time=0, desired=np.zeros(6), actual=np.zeros(6)):
+        motor_values = np.array(self.controller.calculate_motor_values(sim_time, desired, actual))
+        # Need to scale from 1000-2000 to -1:1
+        # motor_values = [1600, 1600, 1600, 1600]
+        return np.array( [ (m - 1000)/500  - 1 for m in motor_values])
+
+    def reset(self):
+        self.controller = PIDControllerPosition(pid_x=self.x, pid_y=self.y, pid_z=self.h, pid_roll=self.r, pid_pitch=self.p, pid_yaw=self.y)
+
+def evalPosition(env, pi):
+    actuals = []
+    desireds = []
+    pi.reset()
+    ob = env.reset()
+    while True:
+        desired = env.position_target
+        print(env.position_target[4])
+        actual = env.quadState
+        # PID only needs to calculate error between desired and actual y_e
+        ac = pi.action(ob, env.sim_time, desired, actual)
+        ob, reward, done, info = env.step(ac)
+        actuals.append(actual)
+        desireds.append(desired)
+        if done:
+            break
+    env.close()
+    return desireds, actuals
+
 def main(env_id, seed):
     env = gym.make(env_id)
+    env.render()
+    time.sleep(5)
     rank = MPI.COMM_WORLD.Get_rank()
     workerseed = seed + 1000000 * rank
     env.seed(workerseed)
-    pi = PIDPolicy()
-    desireds, actuals = eval(env, pi)
+    pi = PIDPolicyPosition()
+    desireds, actuals = evalPosition(env, pi)
     title = "PID Step Response in Environment {}".format(env_id)
     plot_step_response(np.array(desireds), np.array(actuals), title=title)
 

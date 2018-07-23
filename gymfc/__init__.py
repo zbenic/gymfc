@@ -16,6 +16,20 @@ register(
     entry_point='gymfc.envs:GyroErrorESCVelocityFeedbackEnv',
     kwargs=episodic_kwargs)
 
+#Episodic task without ESC supporting sensors for telemetry
+episodic_kwargs = {
+    "memory_size": 1,
+    "world": "takeoff-iris.world",
+    "omega_bounds": [-math.pi*2,math.pi*2],
+    "max_sim_time": 3.,
+    "motor_count":4,
+    }
+id = 'AttFC_Takeoff-Position_M4_Ep-v0'
+register(
+    id=id,
+    entry_point='gymfc.envs:TakeoffTestFlightControlEnv',
+    kwargs=episodic_kwargs)
+
 # Optionally allow different memories
 for i in range(1,MAX_MEMORY):
     episodic_kwargs = {
