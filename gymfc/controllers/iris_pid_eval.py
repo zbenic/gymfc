@@ -1,7 +1,6 @@
 import argparse
 import gym
 import gymfc
-from gymfc.controllers.pid import PIDController
 # from .pid import PIDController
 from gymfc.controllers.positionPID import PIDControllerPosition
 import matplotlib.pyplot as plt

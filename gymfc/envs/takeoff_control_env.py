@@ -26,20 +26,20 @@ class TakeoffTestFlightControlEnv(TakeoffFlightControlEnv):
         self.memory_size = memory_size
         self.motor_count = motor_count
         self.observation_history = []
-        super(TakeoffTestFlightControlEnv, self).__init__(motor_count = motor_count, world=world)
+        super(TakeoffTestFlightControlEnv, self).__init__(motor_count=motor_count, world=world)
         self.position_target = self.sample_position_target()
+        self.target_z = 1.0
 
     def step(self, action):
         action = np.clip(action, self.action_space.low, self.action_space.high) 
         # Step the sim
         self.obs = self.step_sim(action)
-        self.error = self.position_target - self.quadState
+        self.error = self.position_target - self.obs.quadState[1:7]  # TODO: Check this out further
         self.observation_history.append(np.concatenate([self.error]))
         state = self.state()
-        if self.sim_time > 1.4087:
-            print("break")
         done = self.sim_time >= self.max_sim_time
         reward = self.compute_reward()
+        # TODO: optimizing step
         info = {"sim_time": self.sim_time, "target_xyz_pos": self.position_target, "current_xyz_pos": self.position_actual}
 
         return state, reward, done, info
@@ -50,8 +50,19 @@ class TakeoffTestFlightControlEnv(TakeoffFlightControlEnv):
         # The newest will be at the end of the array
         memory = np.array(self.observation_history[-self.memory_size:])
         return np.pad(memory.ravel(), 
-                      ((6 * self.memory_size) - memory.size, 0),
-                      'constant', constant_values=(0)) 
+                      ((12 * self.memory_size) - memory.size, 0),
+                      'constant', constant_values=(0))
+
+    def compute_reward(self):
+        """ Compute the reward """
+        reward = -min(abs(self.target_z - self.obs.quadState[2]),
+                      20.0)  # reward = zero for matching target z, -ve as you go farther, upto -20
+        if self.obs.quadState[2] >= self.target_z:  # agent has crossed the target height
+            reward += 10.0  # bonus reward
+            done = True
+        # elif timestamp > self.max_duration:  # agent has run out of time
+        #     reward -= 10.0  # extra penalty
+        #     done = True
 
 
 # class GyroErrorESCVelocityFeedbackEnv(GazeboEnv):

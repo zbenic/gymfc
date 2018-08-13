@@ -183,7 +183,8 @@ class GazeboEnv(gym.Env):
         self.attitude = quaternion_to_euler_angle(*self.attitude_quat)
         self.omega_actual = observations.angular_velocity_rpy
         self.sim_time = observations.timestamp
-        self.quadState = np.concatenate((self.position_actual, self.attitude), axis=0)
+        self.collision = observations.collisionCount > 1
+        self.quadState = np.concatenate((self.position_actual, self.attitude, self.linearVelocity, self.omega_actual), axis=0)
         return observations
     
     def reset2(self):
@@ -343,7 +344,7 @@ class GazeboEnv(gym.Env):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
 
-    def step(self):
+    def step(self, quadState, action):
         raise NotImplementedError
 
     def state(self):
@@ -358,6 +359,15 @@ class GazeboEnv(gym.Env):
     def render(self, mode='human'):
         p = subprocess.Popen(["gzclient", "--verbose"], shell=False)
         self.pids.append(p.pid)
+
+    def get_quad_state(self):
+        return self.quadState
+
+    def get_quad_state_vector_size(self):
+        return self.state().size
+
+    def collision_occured(self):
+        return self.collision
 
 
 class SDFNoMaxStepSizeFoundException(Exception):
