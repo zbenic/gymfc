@@ -142,7 +142,8 @@ class GazeboEnv(gym.Env):
         state = self.state()
         high = np.array([1.0] * motor_count)
         self.action_space = spaces.Box(-high, high, dtype=np.float32)
-        self.observation_space = spaces.Box(-np.inf, np.inf, shape=state.shape, dtype=np.float32) 
+        self.observation_space = spaces.Box(-np.inf, np.inf, shape=state.shape, dtype=np.float32)
+        # self.observation_space = spaces.Box(-10, 10, shape=state.shape, dtype=np.float32)
 
         self._start_sim()
         #self.dt = self.gz.sdf_max_step_size()        

@@ -12,7 +12,7 @@ class TakeoffFlightControlEnv(GazeboEnv):
 
     def sample_position_target(self):
         """ Sample a x, y, z position and roll, pitch and yaw angle """
-        return  [0, 0, 1, 0, 0, 0]
+        return  np.array([0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0])
     
 class TakeoffTestFlightControlEnv(TakeoffFlightControlEnv):
     def __init__(self, world="takeoff-iris.world",
@@ -29,17 +29,34 @@ class TakeoffTestFlightControlEnv(TakeoffFlightControlEnv):
         super(TakeoffTestFlightControlEnv, self).__init__(motor_count=motor_count, world=world)
         self.position_target = self.sample_position_target()
         self.target_z = 1.0
+        self.position_tolerance = 0.1
+        self.velocity_tolerance = 0.1
+        self.done = False
 
     def step(self, action):
+        # TODO: should self.done be reset to False?
         action = np.clip(action, self.action_space.low, self.action_space.high) 
         # Step the sim
         self.obs = self.step_sim(action)
-        self.error = self.position_target - self.obs.quadState[1:7]  # TODO: Check this out further
+        self.error = self.position_target - self.obs.quadState  # TODO: Check this out further
         self.observation_history.append(np.concatenate([self.error]))
         state = self.state()
-        done = self.sim_time >= self.max_sim_time
-        reward = self.compute_reward()
-        # TODO: optimizing step
+        if self.collision:
+            reward = -10
+            done = True
+        elif self.sim_time >= self.max_sim_time:
+            reward = -5
+            done = True
+        else:
+            reward = self.compute_reward()
+            target_distance = np.linalg.norm(self.position_target[0:3] - self.obs.quadState[0:3])
+            velocity_distance = np.linalg.norm(self.position_target[6:9] - self.obs.quadState[6:9])
+            if target_distance <= self.position_tolerance and velocity_distance <= self.velocity_tolerance:  # agent has crossed the target height
+                info = {"sim_time": self.sim_time, "target_xyz_pos": self.position_target,
+                        "current_xyz_pos": self.position_actual}
+                done = True
+                return state, reward, done, info
+
         info = {"sim_time": self.sim_time, "target_xyz_pos": self.position_target, "current_xyz_pos": self.position_actual}
 
         return state, reward, done, info
@@ -55,11 +72,17 @@ class TakeoffTestFlightControlEnv(TakeoffFlightControlEnv):
 
     def compute_reward(self):
         """ Compute the reward """
-        reward = -min(abs(self.target_z - self.obs.quadState[2]),
-                      20.0)  # reward = zero for matching target z, -ve as you go farther, upto -20
-        if self.obs.quadState[2] >= self.target_z:  # agent has crossed the target height
+        target_distance = np.linalg.norm(self.position_target[0:3] - self.obs.quadState[0:3])
+        velocity_distance = np.linalg.norm(self.position_target[6:9] - self.obs.quadState[6:9])
+        distance_reward = 1 - np.tanh(target_distance) ** 0.5
+        velocity_discount = 1-np.maximum(velocity_distance, self.velocity_tolerance)**(1/(np.maximum(target_distance, self.position_tolerance)))
+        reward = distance_reward * velocity_discount
+        if target_distance <= self.position_tolerance:  # agent has crossed the target height
             reward += 10.0  # bonus reward
-            done = True
+            if velocity_distance <= self.velocity_tolerance:
+                reward += 10.0  # bonus reward
+        return reward
+
         # elif timestamp > self.max_duration:  # agent has run out of time
         #     reward -= 10.0  # extra penalty
         #     done = True

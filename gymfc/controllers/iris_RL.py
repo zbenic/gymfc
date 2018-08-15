@@ -175,6 +175,7 @@ def evalPolicy(env, pi):
             action = pi.action(quadState, episodeStep)
             ob, reward, done, info = env.step(action)
             quadStates.append(quadState)
+            # TODO: optimizing step
         if done:
             break
     env.close()
